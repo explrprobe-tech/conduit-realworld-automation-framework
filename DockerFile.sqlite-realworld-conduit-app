@@ -1,0 +1,61 @@
+
+FROM node:22.12-alpine
+
+RUN apk add --no-cache git
+
+WORKDIR /app
+
+# Clone the original repository
+RUN git clone https://github.com/TonyMckes/conduit-realworld-example-app.git .
+
+# Install project dependencies and SQLite driver
+RUN npm install
+RUN npm install -w backend sqlite3
+
+# Create SQLite storage directory
+RUN mkdir -p /app/data
+
+# Configure Sequelize to use SQLite for development
+RUN cat > backend/config/config.js <<'EOF'
+/** @type {import('sequelize').Options} */
+module.exports = {
+  development: {
+    dialect: 'sqlite',
+    storage: '/app/data/development.sqlite',
+    logging: true,
+  },
+  test: {
+    dialect: 'sqlite',
+    storage: '/app/data/testing.sqlite',
+    logging: false,
+  },
+  production: {
+    dialect: 'sqlite',
+    storage: '/app/data/production.sqlite',
+    logging: false,
+  },
+};
+EOF
+
+RUN cat > frontend/vite.config.js <<'EOF'
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react-swc'
+
+export default defineConfig({
+  plugins: [react()],
+  server: {
+    host: '0.0.0.0',
+    port: 3000,
+    proxy: {
+      '/api': {
+        target: 'http://localhost:3001'
+      }
+    }
+  }
+})
+EOF
+
+EXPOSE 3000
+EXPOSE 3001
+
+CMD ["npm", "run", "dev"]
